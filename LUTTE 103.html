@@ -1,0 +1,1000 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lutte 103 - Interactive Astrala Allegum Lutte System Simulator</title>
+    <!-- Tailwind CSS for modern responsive UI styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Three.js Library & OrbitControls -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #030712;
+            color: #f3f4f6;
+            overflow: hidden;
+            user-select: none;
+        }
+        .font-orbitron {
+            font-family: 'Orbitron', sans-serif;
+        }
+        /* Custom scrollbar for sidebar */
+        ::-webkit-scrollbar {
+            width: 4px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.6);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(99, 102, 241, 0.5);
+            border-radius: 2px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(129, 140, 248, 0.8);
+        }
+        /* Glassmorphic panel design */
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .glass-btn {
+            background: rgba(30, 41, 59, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            transition: all 0.2s ease;
+        }
+        .glass-btn:hover {
+            background: rgba(51, 65, 85, 0.9);
+            border-color: rgba(129, 140, 248, 0.5);
+        }
+        .glass-btn.active {
+            background: rgba(79, 70, 229, 0.4);
+            border-color: rgba(129, 140, 248, 0.8);
+            box-shadow: 0 0 15px rgba(99, 102, 241, 0.3);
+        }
+        /* Canvas container */
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 0;
+        }
+        /* Floating labels in 3D world space */
+        .planet-label {
+            position: absolute;
+            transform: translate(-50%, -100%);
+            color: #e0e7ff;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 11px;
+            pointer-events: none;
+            white-space: nowrap;
+            padding: 2px 6px;
+            background: rgba(3, 7, 18, 0.75);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            border-radius: 4px;
+            transition: opacity 0.2s;
+        }
+    </style>
+</head>
+<body class="relative w-screen h-screen">
+
+    <!-- 3D Canvas -->
+    <div id="canvas-container"></div>
+
+    <!-- Screen Labels Container -->
+    <div id="labels-container" class="absolute inset-0 pointer-events-none z-10 overflow-hidden"></div>
+
+    <!-- Header Overlay -->
+    <header class="absolute top-4 left-4 z-20 flex items-center space-x-3 pointer-events-auto">
+        <div class="glass-panel p-3 rounded-xl flex items-center space-x-3 border-indigo-500/30">
+            <div class="w-10 h-10 rounded-full bg-gradient-to-tr from-purple-600 via-indigo-600 to-black flex items-center justify-center shadow-lg shadow-indigo-500/20 ring-2 ring-indigo-400/30">
+                <i class="fa-solid font-bold text-indigo-200 fa-atom animate-spin-slow"></i>
+            </div>
+            <div>
+                <h1 class="font-orbitron font-bold text-lg text-white tracking-wider flex items-center gap-2">
+                    Astrala Allegum Lutte System <span class="text-xs px-2 py-0.5 rounded bg-purple-900/60 text-purple-300 border border-purple-500/30 font-normal">Black Hole System</span>
+                </h1>
+                <p class="text-xs text-slate-400 font-light">Not to scale: Planet sizes enlarged. Orbital resonance unmodelled. </p>
+            </div>
+        </div>
+    </header>
+
+    <!-- Top Right Bar: Primary Controls & Camera Switcher -->
+    <div class="absolute top-4 right-4 z-20 flex flex-wrap gap-2 items-center pointer-events-auto">
+        <button id="toggle-index-btn" class="glass-btn active px-4 py-2 rounded-lg text-xs font-semibold text-white flex items-center gap-2">
+            <i class="fa-solid fa-list-ul"></i>
+            <span>System Index</span>
+        </button>
+
+        <button id="toggle-orbits-btn" class="glass-btn active px-4 py-2 rounded-lg text-xs font-semibold text-white flex items-center gap-2">
+            <i class="fa-solid fa-circle-notch"></i>
+            <span>Orbits</span>
+        </button>
+
+        <button id="toggle-labels-btn" class="glass-btn active px-4 py-2 rounded-lg text-xs font-semibold text-white flex items-center gap-2">
+            <i class="fa-solid fa-tag"></i>
+            <span>Labels</span>
+        </button>
+
+        <button id="reset-cam-btn" class="glass-btn px-4 py-2 rounded-lg text-xs font-semibold text-white flex items-center gap-2">
+            <i class="fa-solid fa-video"></i>
+            <span>Free Cam</span>
+        </button>
+    </div>
+
+    <!-- Main Sidebar / System Index (Left Side) -->
+    <aside id="sidebar-index" class="absolute top-20 left-4 bottom-4 w-80 z-20 flex flex-col glass-panel rounded-2xl p-4 transition-all duration-300 transform translate-x-0 pointer-events-auto shadow-2xl">
+        <div class="flex items-center justify-between pb-3 mb-3 border-b border-slate-700/60">
+            <span class="font-orbitron text-xs font-semibold tracking-wider text-indigo-300 uppercase">Celestial Index</span>
+            <span class="text-xs text-slate-400" id="object-count">12 Bodies</span>
+        </div>
+
+        <!-- Camera Focus Selector Dropdown -->
+        <div class="mb-4">
+            <label class="text-xs text-slate-400 mb-1 block">Target Observation Focus</label>
+            <select id="camera-target-select" class="w-full bg-slate-900/90 border border-slate-700 rounded-lg px-3 py-2 text-xs font-medium text-slate-200 focus:outline-none focus:border-indigo-500">
+                <option value="lutte103">Lutte 103 (Black Hole)</option>
+                <!-- Dynamically filled with planets -->
+            </select>
+        </div>
+
+        <!-- Bodies List -->
+        <div class="flex-1 overflow-y-auto space-y-1.5 pr-1" id="planet-list">
+            <!-- Planet item template populated via JavaScript -->
+        </div>
+
+        <!-- Simulation Speed Controller -->
+        <div class="pt-3 mt-3 border-t border-slate-700/60 space-y-2">
+            <div class="flex items-center justify-between text-xs">
+                <span class="text-slate-400 flex items-center gap-1.5">
+                    <i class="fa-solid fa-gauge-high text-indigo-400"></i> Sim Speed
+                </span>
+                <span id="speed-display" class="font-orbitron text-indigo-300 font-bold">1.0x</span>
+            </div>
+            <div class="flex items-center space-x-2">
+                <button id="pause-btn" class="glass-btn p-2 rounded-md text-xs w-9 text-slate-200 flex items-center justify-center">
+                    <i class="fa-solid fa-pause" id="pause-icon"></i>
+                </button>
+                <input id="speed-slider" type="range" min="0" max="10" step="0.1" value="1" class="w-full accent-indigo-500 h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer">
+            </div>
+        </div>
+    </aside>
+
+    <!-- Planet Information HUD (Bottom Right) -->
+    <div id="info-hud" class="absolute bottom-4 right-4 z-20 w-72 sm:w-80 glass-panel rounded-xl p-3.5 pointer-events-auto transition-all duration-300 shadow-2xl border-indigo-500/20">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-2 overflow-hidden">
+                <span id="hud-type-badge" class="px-2 py-0.5 rounded-full text-[9px] font-semibold tracking-wide uppercase bg-purple-900/80 text-purple-300 border border-purple-400/30 whitespace-nowrap">
+                    Central Body
+                </span>
+                <h2 id="hud-title" class="font-orbitron text-sm font-bold text-white truncate">Lutte 103</h2>
+            </div>
+            <div class="flex items-center space-x-1 flex-shrink-0 ml-2">
+                <button id="hud-track-btn" title="Track Camera" class="glass-btn px-2 py-1 rounded-md text-[11px] font-semibold text-indigo-300 flex items-center gap-1">
+                    <i class="fa-solid fa-crosshairs"></i> <span class="hidden sm:inline">Track</span>
+                </button>
+                <button id="hud-minimize-btn" title="Minimize Panel" class="glass-btn px-2 py-1 rounded-md text-[11px] font-semibold text-slate-300 hover:text-white flex items-center justify-center">
+                    <i class="fa-solid fa-chevron-down text-xs" id="hud-minimize-icon"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Minimizable Content Body -->
+        <div id="hud-body" class="transition-all duration-300">
+            <p id="hud-description" class="text-[11px] text-slate-300 mt-2.5 leading-snug font-normal">
+                Lutte 103 is a dormant stellar-mass black hole.
+            </p>
+
+            <!-- Stats Grid -->
+            <div class="grid grid-cols-2 gap-1.5 mt-3 pt-2.5 border-t border-slate-700/60">
+                <div class="bg-slate-900/50 p-2 rounded-lg border border-slate-800/80">
+                    <div class="text-[9px] text-slate-400 uppercase tracking-wider">Physical Scale</div>
+                    <div id="hud-stat-size" class="font-orbitron text-[11px] font-semibold text-indigo-200 mt-0.5 truncate">Stellar Mass</div>
+                </div>
+                <div class="bg-slate-900/50 p-2 rounded-lg border border-slate-800/80">
+                    <div class="text-[9px] text-slate-400 uppercase tracking-wider">Orbit Profile</div>
+                    <div id="hud-stat-orbit" class="font-orbitron text-[11px] font-semibold text-indigo-200 mt-0.5 truncate">System Origin</div>
+                </div>
+                <div class="bg-slate-900/50 p-2 rounded-lg border border-slate-800/80">
+                    <div class="text-[9px] text-slate-400 uppercase tracking-wider">Classification</div>
+                    <div id="hud-stat-class" class="font-orbitron text-[11px] font-semibold text-indigo-200 mt-0.5 truncate">Singularity</div>
+                </div>
+                <div class="bg-slate-900/50 p-2 rounded-lg border border-slate-800/80">
+                    <div class="text-[9px] text-slate-400 uppercase tracking-wider">Distance Index</div>
+                    <div id="hud-stat-distance" class="font-orbitron text-[11px] font-semibold text-indigo-200 mt-0.5 truncate">0.0 AU</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Application Script -->
+    <script>
+        // --- 1. DATA DEFINITIONS FOR LUTTE 103 SYSTEM ---
+        const SYSTEM_DATA = {
+            blackHole: {
+                id: 'lutte103',
+                name: 'Lutte 103',
+                type: 'Black Hole',
+                badge: 'Central Black Hole',
+                color: '#8b5cf6',
+                size: 4.5,
+                description: 'A dormant stellar-mass black hole serving as the gravitational and thermal anchor for the system.',
+                scaleText: 'Stellar Mass Singularity',
+                orbitText: 'Center of Mass',
+                classText: 'Singularity',
+                distText: '0.00 AU'
+            },
+            planets: [
+                {
+                    id: 'astrala443',
+                    name: 'Astrala 443 Messenger',
+                    type: 'Terrestrial',
+                    badge: 'Closest Orbit',
+                    size: 0.6,
+                    semiMajorAxis: 14,
+                    eccentricity: 0.0,
+                    speed: 0.025,
+                    color: '#a1a1aa',
+                    textureType: 'mercury',
+                    description: 'A hyper-dense, heavily irradiated inner planet orbiting at the innermost edge of stability.',
+                    scaleText: '0.38x Earth (Mercury Size)',
+                    orbitText: 'Perfect Circular (ISCO)',
+                    classText: 'Terrestrial',
+                    distText: '0.14 AU'
+                },
+                {
+                    id: 'astrala067',
+                    name: 'Astrala 067 Pretension',
+                    type: 'Terrestrial',
+                    badge: 'Terrestrial World',
+                    size: 0.45,
+                    semiMajorAxis: 20,
+                    eccentricity: 0.02,
+                    speed: 0.018,
+                    color: '#94a3b8',
+                    textureType: 'moon',
+                    description: 'Structurally comparable to 443 in composition and profile, sharing a similar terrestrial classification on a smaller scale.',
+                    scaleText: '0.27x Earth (Moon Size)',
+                    orbitText: 'Near Circular',
+                    classText: 'Terrestrial',
+                    distText: '0.20 AU'
+                },
+                {
+                    id: 'hideoh9011',
+                    name: 'Hideoh 9011 - B',
+                    type: 'Terrestrial',
+                    badge: 'Lava World',
+                    size: 1.3,
+                    semiMajorAxis: 27,
+                    eccentricity: 0.03,
+                    speed: 0.014,
+                    color: '#ef4444',
+                    textureType: 'boiling',
+                    description: 'Its capture caused orbital destabilization for Astrala 172 Leviathan before finding its own stable path. It exists in a perpetual meteorological loop: surface temperatures keep water locked in a continuous, violent cycle of flashing into boiling steam and precipitating down as scalding rain, never quite hot enough to vaporize entirely into space.',
+                    scaleText: '1.5x Earth Size',
+                    orbitText: 'Near Circular',
+                    classText: 'Terrestrial',
+                    distText: '0.27 AU'
+                },
+                {
+                    id: 'astrala172',
+                    name: 'Astrala 172 Leviathan',
+                    type: 'Terrestrial',
+                    badge: 'Elliptical World',
+                    size: 1.1,
+                    semiMajorAxis: 38,
+                    eccentricity: 0.28,
+                    speed: 0.011,
+                    color: '#3b82f6',
+                    textureType: 'earth',
+                    description: 'Originally destabilized by the rogue capture of Hideoh 9011 - B, this Earth-type world experiences wild climatic shifts as it traverses its eccentric path between thermal extremes.',
+                    scaleText: '1.2x Earth Size',
+                    orbitText: 'Elliptical Orbit (e = 0.28)',
+                    classText: 'Terrestrial',
+                    distText: '0.38 AU avg'
+                },
+                {
+                    id: 'astrala131',
+                    name: 'Astrala 131 Dusk',
+                    type: 'Terrestrial',
+                    badge: 'Twilight World',
+                    size: 1.2,
+                    semiMajorAxis: 46,
+                    eccentricity: 0.03,
+                    speed: 0.009,
+                    color: '#6366f1',
+                    textureType: 'dusk',
+                    description: 'Relatively identical in geological makeup to Astrala 172 Leviathan, but blessed with a stable, temperate circular orbit that avoids the violent thermal swings of its neighbor.',
+                    scaleText: '1.3x Earth Size',
+                    orbitText: 'Near Circular',
+                    classText: 'Terrestrial',
+                    distText: '0.46 AU'
+                },
+                {
+                    id: 'astrala109',
+                    name: 'Astrala 109 Paradise',
+                    type: 'Terrestrial',
+                    badge: 'Desert World',
+                    size: 0.7,
+                    semiMajorAxis: 58,
+                    eccentricity: 0.04,
+                    speed: 0.007,
+                    color: '#f97316',
+                    textureType: 'mars',
+                    description: 'Once structurally similar to the 172/131 twins, its ancient magnetic core proved too weak to withstand the systems ambient radiation gradients and was systematically stripped and desiccated, leaving behind a red, barren, wind-scoured sandy wasteland.',
+                    scaleText: '0.53x Earth (Mars Size)',
+                    orbitText: 'Near Circular',
+                    classText: 'Terrestrial',
+                    distText: '0.58 AU'
+                },
+                {
+                    id: 'astrala316',
+                    name: 'Astrala 316 Pyramids',
+                    type: 'Gas Giant',
+                    badge: 'Gas Giant',
+                    size: 2.8,
+                    semiMajorAxis: 110,
+                    eccentricity: 0.02,
+                    speed: 0.0035,
+                    color: '#fde047',
+                    textureType: 'saturn',
+                    description: 'A massive, smooth gas giant sweeping through the outer system, notable for its stark, ringless horizon.',
+                    scaleText: '1.0x Saturn Size',
+                    orbitText: 'Near Circular (~2x 109)',
+                    classText: 'Gas Giant',
+                    distText: '1.10 AU'
+                },
+                {
+                    id: 'astrala309',
+                    name: 'Astrala 309 Shade',
+                    type: 'Gas Giant',
+                    badge: 'Dark Giant',
+                    size: 3.8,
+                    semiMajorAxis: 240,
+                    eccentricity: 0.015,
+                    speed: 0.0018,
+                    color: '#1e1b4b',
+                    textureType: 'dark',
+                    description: 'An abyssal, light-devouring gas giant. It absorbs nearly all incident radiation, presenting a surface of absolute, lightless black that creates an eerie void in the outer system.',
+                    scaleText: '1.4x Jupiter Size',
+                    orbitText: 'Near Circular',
+                    classText: 'Gas Giant',
+                    distText: '2.40 AU'
+                },
+                {
+                    id: 'viggen3',
+                    name: 'Viggen 3',
+                    type: 'Gas Giant',
+                    badge: '3-Way Rings',
+                    size: 2.2,
+                    semiMajorAxis: 390,
+                    eccentricity: 0.35,
+                    speed: 0.0009,
+                    color: '#06b6d4',
+                    textureType: 'uranus',
+                    has3Rings: true,
+                    description: 'Another interloper caught by the systems gravity well, distinguished by a complex triple-tier ring system looping around its ice-giant bulk.',
+                    scaleText: '1.0x Uranus Size',
+                    orbitText: 'Elliptical-Circular (Unstable)',
+                    classText: 'Gas Giant',
+                    distText: '3.90 AU'
+                },
+                {
+                    id: 'astrala102',
+                    name: 'Astrala 102 Interstellar',
+                    type: 'Terrestrial',
+                    badge: 'Ice World',
+                    size: 0.5,
+                    semiMajorAxis: 480,
+                    eccentricity: 0.05,
+                    speed: 0.0006,
+                    color: '#e0f2fe',
+                    textureType: 'ice',
+                    description: 'A small, frigid, distant world locked deep in the outer reaches of the black holes sphere of influence.',
+                    scaleText: 'Sedna Size',
+                    orbitText: 'Near Circular Outer Orbit',
+                    classText: 'Terrestrial',
+                    distText: '4.80 AU'
+                },
+                {
+                    id: 'astrala012',
+                    name: 'Astrala 012 Perseverance',
+                    type: 'Terrestrial',
+                    badge: 'Co-Orbital World',
+                    size: 1.6,
+                    semiMajorAxis: 505,
+                    eccentricity: 0.05,
+                    speed: 0.00055,
+                    color: '#cbd5e1',
+                    textureType: 'mercury',
+                    description: 'Gravitationally locked in a resonance partner to Astrala 102 Interstellar, its path is dynamically perturbed by 102 in a celestial choreography mirroring the Neptune-Uranus predictive orbital mechanics.',
+                    scaleText: '2.1x Earth Size',
+                    orbitText: 'Near Circular (Follows 102)',
+                    classText: 'Terrestrial',
+                    distText: '5.05 AU'
+                }
+            ]
+        };
+
+        // --- 2. GLOBAL STATE ---
+        let scene, camera, renderer, controls;
+        let blackHoleGroup, accretionMesh;
+        const planetObjects = [];
+        const orbitLines = [];
+        const planetLabels = [];
+        
+        let simSpeed = 1.0;
+        let isPaused = false;
+        let showOrbits = true;
+        let showLabels = true;
+        let cameraTargetObj = null; // null = free camera
+        let selectedObjectId = 'lutte103';
+
+        // --- 3. PROCEDURAL TEXTURE GENERATION ---
+        function createProceduralTexture(type, colorHex) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+            
+            ctx.fillStyle = colorHex;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Add surface details based on body classification
+            if (type === 'boiling') {
+                // Magma cracks and fiery noise
+                for (let i = 0; i < 40; i++) {
+                    ctx.strokeStyle = '#fef08a';
+                    ctx.lineWidth = Math.random() * 3 + 1;
+                    ctx.beginPath();
+                    let x = Math.random() * canvas.width;
+                    let y = Math.random() * canvas.height;
+                    ctx.moveTo(x, y);
+                    for (let j = 0; j < 5; j++) {
+                        x += (Math.random() - 0.5) * 60;
+                        y += (Math.random() - 0.5) * 60;
+                        ctx.lineTo(x, y);
+                    }
+                    ctx.stroke();
+                }
+            } else if (type === 'earth' || type === 'dusk') {
+                // Continents & atmospheric bands
+                ctx.fillStyle = type === 'dusk' ? '#312e81' : '#15803d';
+                for (let i = 0; i < 12; i++) {
+                    ctx.beginPath();
+                    ctx.arc(Math.random() * canvas.width, Math.random() * canvas.height, Math.random() * 60 + 20, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            } else if (type === 'saturn' || type === 'uranus' || type === 'dark') {
+                // Gas giant atmospheric stripes
+                for (let y = 0; y < canvas.height; y += 4) {
+                    const alpha = Math.sin(y * 0.1) * 0.25 + 0.25;
+                    ctx.fillStyle = type === 'dark' ? `rgba(239, 68, 68, ${alpha * 0.2})` : `rgba(255, 255, 255, ${alpha})`;
+                    ctx.fillRect(0, y, canvas.width, 4);
+                }
+            } else if (type === 'mars' || type === 'mercury' || type === 'moon' || type === 'ice') {
+                // Craters and speckles
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
+                for (let i = 0; i < 200; i++) {
+                    ctx.beginPath();
+                    ctx.arc(Math.random() * canvas.width, Math.random() * canvas.height, Math.random() * 8 + 1, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.ClampToEdgeWrapping;
+            return texture;
+        }
+
+        // --- 4. SCENE & CAMERA INITIALIZATION ---
+        function initScene() {
+            const container = document.getElementById('canvas-container');
+            
+            // Three scene
+            scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x030712, 0.0006);
+
+            // Camera
+            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.5, 3000);
+            camera.position.set(0, 120, 220);
+
+            // WebGL Renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            container.appendChild(renderer.domElement);
+
+            // OrbitControls
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.maxDistance = 1500;
+            controls.minDistance = 8;
+
+            // Ambient & Point Lighting
+            const ambientLight = new THREE.AmbientLight(0x334155, 1.2);
+            scene.add(ambientLight);
+
+            // Central radiance light from Accretion disk
+            const centralLight = new THREE.PointLight(0xa855f7, 3.5, 800);
+            scene.add(centralLight);
+
+            // Background Deep Space Starfield
+            buildStarfield();
+
+            // Create Lutte 103 Central Black Hole
+            buildBlackHole();
+
+            // Create System Planets
+            buildPlanets();
+
+            // Event Listeners
+            window.addEventListener('resize', onWindowResize);
+
+            // UI Init
+            setupUI();
+            updateHUD(SYSTEM_DATA.blackHole);
+        }
+
+        // --- 5. STARFIELD BUILDER ---
+        function buildStarfield() {
+            const starCount = 6000;
+            const geometry = new THREE.BufferGeometry();
+            const positions = new Float32Array(starCount * 3);
+            const colors = new Float32Array(starCount * 3);
+
+            const palette = [
+                new THREE.Color(0x818cf8),
+                new THREE.Color(0xc084fc),
+                new THREE.Color(0x38bdf8),
+                new THREE.Color(0xffffff)
+            ];
+
+            for (let i = 0; i < starCount; i++) {
+                const r = 1200 + Math.random() * 800;
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.acos((Math.random() * 2) - 1);
+
+                positions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+                positions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+                positions[i * 3 + 2] = r * Math.cos(phi);
+
+                const color = palette[Math.floor(Math.random() * palette.length)];
+                colors[i * 3] = color.r;
+                colors[i * 3 + 1] = color.g;
+                colors[i * 3 + 2] = color.b;
+            }
+
+            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+            const material = new THREE.PointsMaterial({
+                size: 1.8,
+                vertexColors: true,
+                transparent: true,
+                opacity: 0.85
+            });
+
+            const starParticles = new THREE.Points(geometry, material);
+            scene.add(starParticles);
+        }
+
+        // --- 6. LUTTE 103 BLACK HOLE CREATION ---
+        function buildBlackHole() {
+            blackHoleGroup = new THREE.Group();
+
+            // Dark Event Horizon Sphere (Absorbs light completely)
+            const bhGeo = new THREE.SphereGeometry(SYSTEM_DATA.blackHole.size, 64, 64);
+            const bhMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+            const eventHorizon = new THREE.Mesh(bhGeo, bhMat);
+            blackHoleGroup.add(eventHorizon);
+
+            // Gravitational Photon Sphere Edge Halo
+            const haloGeo = new THREE.SphereGeometry(SYSTEM_DATA.blackHole.size * 1.08, 32, 32);
+            const haloMat = new THREE.MeshBasicMaterial({
+                color: 0xc084fc,
+                side: THREE.BackSide,
+                transparent: true,
+                opacity: 0.4
+            });
+            const haloMesh = new THREE.Mesh(haloGeo, haloMat);
+            blackHoleGroup.add(haloMesh);
+
+            scene.add(blackHoleGroup);
+        }
+
+        // --- 7. PLANET & ORBIT CREATION ---
+        function buildPlanets() {
+            const labelsContainer = document.getElementById('labels-container');
+
+            SYSTEM_DATA.planets.forEach((pData) => {
+                const planetGroup = new THREE.Group();
+
+                // Generate procedural surface texture
+                const texture = createProceduralTexture(pData.textureType, pData.color);
+                
+                // Planet Mesh Material setup
+                let pMat;
+                if (pData.textureType === 'boiling') {
+                    pMat = new THREE.MeshStandardMaterial({
+                        map: texture,
+                        emissive: new THREE.Color(0xd97706),
+                        emissiveIntensity: 0.4,
+                        roughness: 0.6
+                    });
+                } else if (pData.textureType === 'dark') {
+                    pMat = new THREE.MeshStandardMaterial({
+                        map: texture,
+                        color: new THREE.Color(0x0f172a),
+                        roughness: 0.9,
+                        metalness: 0.2
+                    });
+                } else {
+                    pMat = new THREE.MeshStandardMaterial({
+                        map: texture,
+                        roughness: 0.7,
+                        metalness: 0.1
+                    });
+                }
+
+                const pGeo = new THREE.SphereGeometry(pData.size, 32, 32);
+                const pMesh = new THREE.Mesh(pGeo, pMat);
+                pMesh.castShadow = true;
+                pMesh.receiveShadow = true;
+                planetGroup.add(pMesh);
+
+                // Viggen 3 Special Feature: 3-Way Inclined Ring System
+                if (pData.has3Rings) {
+                    const ringAngles = [0, Math.PI / 3, -Math.PI / 3];
+                    const ringColors = [0x06b6d4, 0x38bdf8, 0x818cf8];
+
+                    ringAngles.forEach((angle, idx) => {
+                        const rGeo = new THREE.RingGeometry(pData.size * 1.4, pData.size * 2.3, 32);
+                        const rMat = new THREE.MeshBasicMaterial({
+                            color: ringColors[idx],
+                            side: THREE.DoubleSide,
+                            transparent: true,
+                            opacity: 0.6
+                        });
+                        const rMesh = new THREE.Mesh(rGeo, rMat);
+                        rMesh.rotation.x = Math.PI / 2 + angle * 0.4;
+                        rMesh.rotation.y = angle;
+                        planetGroup.add(rMesh);
+                    });
+                }
+
+                // Initial position calculated from orbit params
+                pData.angle = Math.random() * Math.PI * 2;
+                updatePlanetPosition(planetGroup, pData);
+
+                scene.add(planetGroup);
+
+                // Draw Elliptical / Circular Orbit Line
+                const orbitLine = drawOrbitLine(pData.semiMajorAxis, pData.eccentricity);
+                scene.add(orbitLine);
+                orbitLines.push(orbitLine);
+
+                // UI Screen Label Element
+                const labelDiv = document.createElement('div');
+                labelDiv.className = 'planet-label';
+                labelDiv.innerHTML = `<span style="color:${pData.color}">●</span> ${pData.name}`;
+                labelsContainer.appendChild(labelDiv);
+
+                // Store references for render loop
+                planetObjects.push({
+                    data: pData,
+                    group: planetGroup,
+                    mesh: pMesh,
+                    labelEl: labelDiv
+                });
+            });
+        }
+
+        // --- 8. ORBIT PATH GEOMETRY GENERATOR ---
+        function drawOrbitLine(a, e) {
+            const points = [];
+            const segments = 128;
+            const b = a * Math.sqrt(1 - e * e); // Semi-minor axis
+            const c = a * e; // Focal distance offset from center
+
+            for (let i = 0; i <= segments; i++) {
+                const theta = (i / segments) * Math.PI * 2;
+                // Position centered on primary focus (Lutte 103 at 0,0,0)
+                const x = a * Math.cos(theta) - c;
+                const z = b * Math.sin(theta);
+                points.push(new THREE.Vector3(x, 0, z));
+            }
+
+            const geometry = new THREE.BufferGeometry().setFromPoints(points);
+            const material = new THREE.LineBasicMaterial({
+                color: 0x475569,
+                transparent: true,
+                opacity: 0.4
+            });
+
+            return new THREE.Line(geometry, material);
+        }
+
+        // --- 9. KEPLER ORBIT POSITION UPDATE ---
+        function updatePlanetPosition(group, data) {
+            const a = data.semiMajorAxis;
+            const e = data.eccentricity;
+            const b = a * Math.sqrt(1 - e * e);
+            const c = a * e;
+
+            const x = a * Math.cos(data.angle) - c;
+            const z = b * Math.sin(data.angle);
+
+            group.position.set(x, 0, z);
+        }
+
+        // --- 10. UI & EVENT HANDLERS ---
+        function setupUI() {
+            const listContainer = document.getElementById('planet-list');
+            const selectContainer = document.getElementById('camera-target-select');
+
+            // Populate Black Hole entry in list
+            const bhItem = createListElement(SYSTEM_DATA.blackHole, true);
+            listContainer.appendChild(bhItem);
+
+            // Populate Planets in Index Sidebar & Select Dropdown
+            SYSTEM_DATA.planets.forEach((p) => {
+                const item = createListElement(p, false);
+                listContainer.appendChild(item);
+
+                const option = document.createElement('option');
+                option.value = p.id;
+                option.innerText = p.name;
+                selectContainer.appendChild(option);
+            });
+
+            // Toggle Sidebar Index
+            const sidebar = document.getElementById('sidebar-index');
+            const toggleIndexBtn = document.getElementById('toggle-index-btn');
+            toggleIndexBtn.addEventListener('click', () => {
+                sidebar.classList.toggle('translate-x-0');
+                sidebar.classList.toggle('-translate-x-[110%]');
+                toggleIndexBtn.classList.toggle('active');
+            });
+
+            // Toggle Orbit Lines
+            const toggleOrbitsBtn = document.getElementById('toggle-orbits-btn');
+            toggleOrbitsBtn.addEventListener('click', () => {
+                showOrbits = !showOrbits;
+                orbitLines.forEach(line => line.visible = showOrbits);
+                toggleOrbitsBtn.classList.toggle('active', showOrbits);
+            });
+
+            // Toggle Screen Labels
+            const toggleLabelsBtn = document.getElementById('toggle-labels-btn');
+            toggleLabelsBtn.addEventListener('click', () => {
+                showLabels = !showLabels;
+                document.getElementById('labels-container').style.display = showLabels ? 'block' : 'none';
+                toggleLabelsBtn.classList.toggle('active', showLabels);
+            });
+
+            // Free Camera Reset Button
+            document.getElementById('reset-cam-btn').addEventListener('click', () => {
+                setCameraTarget(null);
+            });
+
+            // Camera Target Select Listener
+            selectContainer.addEventListener('change', (e) => {
+                const targetId = e.target.value;
+                if (targetId === 'lutte103') {
+                    focusObject(SYSTEM_DATA.blackHole);
+                } else {
+                    const target = SYSTEM_DATA.planets.find(p => p.id === targetId);
+                    if (target) focusObject(target);
+                }
+            });
+
+            // Simulation Speed Slider & Pause Button
+            const speedSlider = document.getElementById('speed-slider');
+            const speedDisplay = document.getElementById('speed-display');
+            const pauseBtn = document.getElementById('pause-btn');
+            const pauseIcon = document.getElementById('pause-icon');
+
+            speedSlider.addEventListener('input', (e) => {
+                simSpeed = parseFloat(e.target.value);
+                speedDisplay.innerText = `${simSpeed.toFixed(1)}x`;
+            });
+
+            pauseBtn.addEventListener('click', () => {
+                isPaused = !isPaused;
+                pauseIcon.className = isPaused ? 'fa-solid fa-play' : 'fa-solid fa-pause';
+                pauseBtn.classList.toggle('active', isPaused);
+            });
+
+            // Track button in HUD
+            document.getElementById('hud-track-btn').addEventListener('click', () => {
+                if (selectedObjectId === 'lutte103') {
+                    setCameraTarget(blackHoleGroup);
+                } else {
+                    const pObj = planetObjects.find(p => p.data.id === selectedObjectId);
+                    if (pObj) setCameraTarget(pObj.group);
+                }
+            });
+
+            // HUD Minimize/Collapse Toggle Handler
+            const hudBody = document.getElementById('hud-body');
+            const hudMinBtn = document.getElementById('hud-minimize-btn');
+            const hudMinIcon = document.getElementById('hud-minimize-icon');
+            let isHudCollapsed = false;
+
+            hudMinBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                isHudCollapsed = !isHudCollapsed;
+                if (isHudCollapsed) {
+                    hudBody.classList.add('hidden');
+                    hudMinIcon.className = 'fa-solid fa-chevron-up text-xs';
+                } else {
+                    hudBody.classList.remove('hidden');
+                    hudMinIcon.className = 'fa-solid fa-chevron-down text-xs';
+                }
+            });
+        }
+
+        // Create Sidebar list item HTML
+    function createListElement(data, isBlackHole) {
+        const div = document.createElement('div');
+        div.className = `p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
+            selectedObjectId === data.id 
+            ? 'bg-indigo-950/60 border-indigo-500/50 text-white' 
+            : 'bg-slate-900/40 border-slate-800/80 text-slate-300 hover:bg-slate-800/60'
+        }`;
+        div.dataset.id = data.id;
+
+        div.innerHTML = `
+            <div class="flex items-center space-x-2.5 overflow-hidden">
+                <span class="w-3 h-3 rounded-full flex-shrink-0" style="background-color: ${data.color}"></span>
+                <div class="truncate">
+                    <div class="text-xs font-semibold font-orbitron truncate">${data.name}</div>
+                    <div class="text-[10px] text-slate-400 truncate">${data.type}</div>
+                </div>
+            </div>
+            <i class="fa-solid fa-chevron-right text-[10px] text-slate-500"></i>
+        `;
+
+        div.addEventListener('click', () => {
+            focusObject(data);
+        });
+
+        return div;
+    }
+
+        // Focus object handler
+        function focusObject(data) {
+            selectedObjectId = data.id;
+            updateHUD(data);
+
+            // Update list highlighting
+            document.querySelectorAll('#planet-list > div').forEach(el => {
+                const isActive = el.dataset.id === data.id;
+                el.className = `p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
+                    isActive 
+                    ? 'bg-indigo-950/60 border-indigo-500/50 text-white' 
+                    : 'bg-slate-900/40 border-slate-800/80 text-slate-300 hover:bg-slate-800/60'
+                }`;
+            });
+
+            // Synchronize Dropdown
+            document.getElementById('camera-target-select').value = data.id;
+
+            // Set camera target
+            if (data.id === 'lutte103') {
+                setCameraTarget(blackHoleGroup);
+            } else {
+                const pObj = planetObjects.find(p => p.data.id === data.id);
+                if (pObj) setCameraTarget(pObj.group);
+            }
+        }
+
+        // Set camera target reference for observation tracking
+        function setCameraTarget(targetGroup) {
+            cameraTargetObj = targetGroup;
+            if (!targetGroup) {
+                // Free Cam selected
+                controls.target.set(0, 0, 0);
+                document.getElementById('camera-target-select').value = 'lutte103';
+            }
+        }
+
+        // Update Information HUD Panel
+        function updateHUD(data) {
+            document.getElementById('hud-title').innerText = data.name;
+            document.getElementById('hud-type-badge').innerText = data.badge || data.type;
+            document.getElementById('hud-description').innerText = data.description;
+            document.getElementById('hud-stat-size').innerText = data.scaleText || `${data.size}x Unit`;
+            document.getElementById('hud-stat-orbit').innerText = data.orbitText || 'Standard Orbit';
+            document.getElementById('hud-stat-class').innerText = data.classText || data.type;
+            document.getElementById('hud-stat-distance').innerText = data.distText || 'N/A';
+        }
+
+        // --- 11. WINDOW RESIZE HANDLER ---
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // --- 12. MAIN ANIMATION LOOP ---
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Rotate Black Hole Accretion Disk slowly
+            if (accretionMesh) {
+                accretionMesh.rotation.z += 0.002;
+            }
+
+            // Update Planet Motions
+            if (!isPaused) {
+                planetObjects.forEach(pObj => {
+                    const pData = pObj.data;
+                    // Orbit update
+                    pData.angle += pData.speed * 0.1 * simSpeed;
+                    updatePlanetPosition(pObj.group, pData);
+
+                    // Self-rotation
+                    pObj.mesh.rotation.y += 0.01 * simSpeed;
+                });
+            }
+
+            // Smooth Camera Observation Tracking
+            if (cameraTargetObj) {
+                const targetPos = new THREE.Vector3();
+                cameraTargetObj.getWorldPosition(targetPos);
+                
+                // Interpolate controls target to lock onto body smoothly
+                controls.target.lerp(targetPos, 0.08);
+            }
+
+            controls.update();
+            renderer.render(scene, camera);
+
+            // Update 2D Screen Space Labels Position
+            if (showLabels) {
+                const tempV = new THREE.Vector3();
+                planetObjects.forEach(pObj => {
+                    pObj.group.getWorldPosition(tempV);
+                    
+                    // Project 3D pos to 2D screen coordinate
+                    tempV.project(camera);
+
+                    // Check if object is behind camera clipping plane
+                    if (tempV.z > 1) {
+                        pObj.labelEl.style.opacity = '0';
+                        return;
+                    }
+
+                    const x = (tempV.x *  .5 + .5) * window.innerWidth;
+                    const y = (tempV.y * -.5 + .5) * window.innerHeight;
+
+                    pObj.labelEl.style.left = `${x}px`;
+                    pObj.labelEl.style.top = `${y - 12}px`;
+                    pObj.labelEl.style.opacity = '1';
+                });
+            }
+        }
+
+        // --- 13. START APPLICATION ON LOAD ---
+        window.onload = function() {
+            initScene();
+            animate();
+        };
+    </script>
+</body>
+</html>
